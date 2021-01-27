@@ -14,45 +14,74 @@ use crate::SharedPartsList;
 
 #[get("/")]
 pub fn index() -> &'static str {
-r#"BOM-Server
+r####"# BOM Server API
+The `bom-server` API exposes a simple REST API to allow for management of BOM parts.
 
-API v1
-------
-Use the following APIs to interact with the BOM Server:
+## API Overview
+The following APIs can be used to interact with the BOM Server:
 
-GET     /v1/parts      -> list all parts
-POST    /v1/parts      -> create a new part
-GET     /v1/parts/<id> -> get part <id> information
-DELETE  /v1/parts/<id> -> delete part <id> from server
-GET     /v1/parts/<id>/children -> get children of part <id>
-POST    /v1/parts/<id>/children -> update children of part <id>
+```
+GET     /v1/parts?filter=<all|top_level|assembly|component|subassembly|orphan> -> list all parts
+POST    /v1/parts                                                -> create a new part
+GET     /v1/parts/<id>                                           -> get part <id> information
+DELETE  /v1/parts/<id>                                           -> delete part <id> from server
+GET     /v1/parts/<id>/children?filter=<all|component|top_level> -> get children of part <id>
+POST    /v1/parts/<id>/children?action=<add|remove|replace>      -> update children of part <id>
 GET     /v1/parts/<id>/contained -> get assemblies that include part <id> directly or indirectly
+```
 
-New Part Request Body:
-{
-    name: "Name of the part"
-}
+## Responses
+Each query to a valid API on the server returns a response object in JSON format the body of the reply.
 
-Update Children Request Body:
-{
-    parts: ["child part id1", "child part id2", ... ]
-}
+### Response Body
+Each field is optional and should be checked for `null` before referencing values. The `error` field
+will be set only if an error occurred as a result of the requested operation.  Otherwise, `result`
+and `data` should be populated as shown below.
 
-Response Body:
+```
 {
-    result: {
-      code: int,
-      description: "Result information"
+    "result": {
+        "code": <int>,
+        "description": "<Result information String>"
     },
-    data: [{name: "part id1", id: ###, {name: "part id2", id: ###}, ... ],
-    error: {
-      code: int,
-      description: "Error description"
+    "data": [
+        {
+            "id": "<UUID String>",
+            "name": "<part name>",
+            "parents" : [ "<UUID String>", ... ],
+            "children" : [ "<UUID String>", ... ]
+        },
+        ...
+    ]
+    "error": {
+        "code": <int>,
+        "description": "<Error description String>"
     }
 }
-Fields above are optional and should be checked before referencing values.
+```
 
-"#
+## Requests
+Each POST command requires a properly formatted JSON object in the request body.
+
+### New Part Request Body
+To request creation of a part, supply a unique name for the part as follows:
+
+```
+{
+    "name": "<name of the part>"
+}
+```
+
+### Update Children Request Body
+To request updates to the children of a part, supply the child identifiers for the operation as follows:
+
+```
+{
+    "children": ["<child part id1>", "<child part id2>", ... ]
+}
+```
+
+"####
 }
 
 
