@@ -86,10 +86,10 @@ To request updates to the children of a part, supply the child identifiers for t
 
 
 #[get("/v1/parts?<filter>")]
-pub fn list_parts(filter: &RawStr,
+pub fn list_parts(filter: Option<&RawStr>,
                   parts: State<SharedPartsList>) -> Json<Response> {
     let response = Response::new();
-    match filter.as_str().try_into() {
+    match filter.unwrap_or(RawStr::from_str("all")).as_str().try_into() {
         Ok(filter) => {
             if let Ok(parts) = parts.0.try_read() {
                 let parts: &PartsList = &parts;
@@ -169,11 +169,11 @@ pub fn delete_part(part_id: RocketUuid,
 
 #[get("/v1/parts/<part_id>/children?<filter>")]
 pub fn get_children(part_id: RocketUuid,
-                    filter: &RawStr,
+                    filter: Option<&RawStr>,
                     parts: State<SharedPartsList>) -> Json<Response> {
     let response = Response::new();
     let part_id = Uuid::from_bytes(part_id.as_bytes().clone());
-    match filter.as_str().try_into() {
+    match filter.unwrap_or(RawStr::from_str("all")).as_str().try_into() {
         Ok(filter) => {
             match filter {
                 PartsListFilter::All | PartsListFilter::Component | PartsListFilter::TopLevel => {
@@ -207,12 +207,12 @@ pub fn get_children(part_id: RocketUuid,
 
 #[post("/v1/parts/<part_id>/children?<action>", format = "json", data = "<data>")]
 pub fn update_children(part_id: RocketUuid,
-                       action:  &RawStr,
+                       action:  Option<&RawStr>,
                        data: Json<UpdateChildren>,
                        parts: State<SharedPartsList>) -> Json<Response> {
     let response = Response::new();
     let part_id = Uuid::from_bytes(part_id.as_bytes().clone());
-    match action.as_str().try_into() {
+    match action.unwrap_or(RawStr::from_str("add")).as_str().try_into() {
         Ok(action) => {
             if let Ok(mut parts) = parts.0.try_write() {
                 match parts.update(&part_id, &data.children.iter().collect::<Vec<&Uuid>>(), action) {
