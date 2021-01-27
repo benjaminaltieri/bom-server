@@ -349,7 +349,12 @@ impl PartsList {
         match op {
             PartsListUpdate::Add => { self.add_children(&id, children) },
             PartsListUpdate::Remove => { self.remove_children(&id, children) },
-            PartsListUpdate::Replace => {Ok(())}
+            PartsListUpdate::Replace => {
+                let part = self.get(&id)?.clone();
+                let old_children = &PartsList::get_part_children(&part);
+                self.remove_children(&id, old_children)?;
+                self.add_children(&id, children)
+            }
         }
     }
 
@@ -511,6 +516,27 @@ mod tests {
 
         let list = parts.get_children(&part4.id, PartsListFilter::Assembly).unwrap();
         list_compare(&list, &vec![&part1, &part2, &part3]);
+    }
+
+    #[test]
+    fn test_update_children() {
+        let mut parts = PartsList::new();
+        let part1 = parts.add(Part::new("my part")).unwrap().clone();
+        let part2 = parts.add(Part::new("other part")).unwrap().clone();
+        let part3 = parts.add(Part::new("subassy")).unwrap().clone();
+        let part4 = parts.add(Part::new("deep component")).unwrap().clone();
+
+        parts.update(&part1.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
+        parts.update(&part2.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
+        parts.update(&part3.id, &vec![&part4.id],  PartsListUpdate::Add).unwrap();
+
+        let list = parts.get_children(&part1.id, PartsListFilter::All).unwrap();
+        list_compare(&list, &vec![&part3, &part4]);
+
+        parts.update(&part1.id, &vec![&part2.id, &part3.id, &part4.id],  PartsListUpdate::Replace).unwrap();
+
+        let list = parts.get_children(&part1.id, PartsListFilter::All).unwrap();
+        list_compare(&list, &vec![&part2, &part3, &part4]);
     }
 
     #[test]
