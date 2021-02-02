@@ -1,10 +1,10 @@
 use std::vec::Vec;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::errors::{PartsError, PartsErrorCode};
-use crate::parts_list::{Part};
+use crate::parts_list::Part;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueryResult {
@@ -21,11 +21,18 @@ pub struct Response {
 
 impl Response {
     pub fn new() -> Response {
-        Response { result: None, data: None, error: None }
+        Response {
+            result: None,
+            data: None,
+            error: None,
+        }
     }
 
     pub fn result(mut self, code: u32, description: &str) -> Response {
-        self.result = Some(QueryResult { code: code, description: description.into() });
+        self.result = Some(QueryResult {
+            code: code,
+            description: description.into(),
+        });
         self
     }
 

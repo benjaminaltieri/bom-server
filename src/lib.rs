@@ -14,10 +14,10 @@ extern crate uuid;
 
 pub mod client;
 pub mod errors;
+pub mod parts_list;
 pub mod query;
 pub mod response;
 pub mod routes;
-pub mod parts_list;
 
 use std::sync::RwLock;
 
@@ -35,17 +35,19 @@ impl SharedPartsList {
 /// Create reactor for bom-server taking ownership of a parts list instance
 /// and mount all API paths from the routes module
 pub fn make_rocket(parts_list: SharedPartsList) -> rocket::Rocket {
-    rocket::ignite().mount("/",
-                           routes![
-                           routes::index,
-                           routes::list_parts,
-                           routes::create_part,
-                           routes::get_part,
-                           routes::delete_part,
-                           routes::get_children,
-                           routes::update_children,
-                           routes::get_contained,
-                           ]
-                           )
-                    .manage(parts_list)
+    rocket::ignite()
+        .mount(
+            "/",
+            routes![
+                routes::index,
+                routes::list_parts,
+                routes::create_part,
+                routes::get_part,
+                routes::delete_part,
+                routes::get_children,
+                routes::update_children,
+                routes::get_contained,
+            ],
+        )
+        .manage(parts_list)
 }
