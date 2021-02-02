@@ -6,4 +6,3 @@ fn main() {
     let parts_list = SharedPartsList::new();
     make_rocket(parts_list).launch();
 }
-

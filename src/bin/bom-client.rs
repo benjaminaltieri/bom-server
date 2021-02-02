@@ -19,11 +19,11 @@ pub enum FilterOption {
     Assembly,
     Component,
     Subassembly,
-    Orphan
+    Orphan,
 }
 
 /// Convert from structopt cli filter repr to internal filter type
-impl From<FilterOption> for PartsListFilter { 
+impl From<FilterOption> for PartsListFilter {
     fn from(filter: FilterOption) -> PartsListFilter {
         match filter {
             FilterOption::All => PartsListFilter::All,
@@ -31,7 +31,7 @@ impl From<FilterOption> for PartsListFilter {
             FilterOption::Assembly => PartsListFilter::Assembly,
             FilterOption::Component => PartsListFilter::Component,
             FilterOption::Subassembly => PartsListFilter::Subassembly,
-            FilterOption::Orphan => PartsListFilter::Orphan
+            FilterOption::Orphan => PartsListFilter::Orphan,
         }
     }
 }
@@ -45,7 +45,7 @@ pub enum ActionOption {
 }
 
 /// Convert from structopt cli filter repr to internal filter type
-impl From<ActionOption> for PartsListUpdate { 
+impl From<ActionOption> for PartsListUpdate {
     fn from(filter: ActionOption) -> PartsListUpdate {
         match filter {
             ActionOption::Add => PartsListUpdate::Add,
@@ -82,8 +82,7 @@ pub enum SubCommand {
 
 /// Return text from BOM Server root
 #[derive(Clap)]
-pub struct GetIndex {
-}
+pub struct GetIndex {}
 
 /// List parts from BOM Server
 #[derive(Clap)]
@@ -185,17 +184,25 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         SubCommand::GetChildren(subopts) => {
-            let response = client::get_children(&context, &subopts.id, subopts.filter.into()).await?;
+            let response =
+                client::get_children(&context, &subopts.id, subopts.filter.into()).await?;
             println!("{}", to_string_pretty(&response)?);
             Ok(())
         }
         SubCommand::UpdatePart(subopts) => {
-            let response = client::update_part(&context, &subopts.id, &subopts.children, subopts.action.into()).await?;
+            let response = client::update_part(
+                &context,
+                &subopts.id,
+                &subopts.children,
+                subopts.action.into(),
+            )
+            .await?;
             println!("{}", to_string_pretty(&response)?);
             Ok(())
         }
         SubCommand::GetContained(subopts) => {
-            let response = client::get_children(&context, &subopts.id, PartsListFilter::Assembly).await?;
+            let response =
+                client::get_children(&context, &subopts.id, PartsListFilter::Assembly).await?;
             println!("{}", to_string_pretty(&response)?);
             Ok(())
         }

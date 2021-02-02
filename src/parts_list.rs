@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::{From, TryFrom};
 
@@ -27,7 +28,7 @@ impl Part {
 impl Clone for Part {
     fn clone(&self) -> Self {
         Part {
-            id: self.id.clone(),
+            id: self.id,
             name: self.name.clone(),
             parents: self.parents.clone(),
             children: self.children.clone(),
@@ -61,10 +62,10 @@ pub enum PartsListFilter {
     Assembly,
     Component,
     Subassembly,
-    Orphan
+    Orphan,
 }
 
-impl TryFrom<&str> for PartsListFilter { 
+impl TryFrom<&str> for PartsListFilter {
     type Error = PartsListError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
@@ -76,12 +77,12 @@ impl TryFrom<&str> for PartsListFilter {
             "component" => Ok(PartsListFilter::Component),
             "subassembly" => Ok(PartsListFilter::Subassembly),
             "orphan" => Ok(PartsListFilter::Orphan),
-            _ => Err(PartsListError::InvalidFilterString{s: s.into()})
+            _ => Err(PartsListError::InvalidFilterString { s: s.into() }),
         }
     }
 }
 
-impl From<PartsListFilter> for &str { 
+impl From<PartsListFilter> for &str {
     fn from(f: PartsListFilter) -> &'static str {
         match f {
             PartsListFilter::All => "all",
@@ -89,7 +90,7 @@ impl From<PartsListFilter> for &str {
             PartsListFilter::Assembly => "assembly",
             PartsListFilter::Component => "component",
             PartsListFilter::Subassembly => "subassembly",
-            PartsListFilter::Orphan => "orphan"
+            PartsListFilter::Orphan => "orphan",
         }
     }
 }
@@ -98,42 +99,27 @@ impl From<PartsListFilter> for &str {
 pub enum PartsListError {
     /// Error occuring when attempting to retrieve non-existant part
     #[error("Part does not exist (id: {id:?})")]
-    PartDoesNotExist {
-        id: Uuid,
-    },
+    PartDoesNotExist { id: Uuid },
 
     /// Error occuring when attempting to add a part that already exists
     #[error("Hash collision, part already exists (name: {name:?}, id: {id:?})")]
-    PartExists {
-        name: String,
-        id: Uuid,
-    },
+    PartExists { name: String, id: Uuid },
 
     /// Error occuring when attempting to add a child who is already a parent of the part
     #[error("Cycle detected, part has child in its parental line (parent: {parent:?}, child: {child:?})")]
-    AddChildCyclicalRelative {
-        parent: Uuid,
-        child: Uuid,
-    },
+    AddChildCyclicalRelative { parent: Uuid, child: Uuid },
 
     /// Failure to parse string into valid PartsListFilter
     #[error("Invalid string: {s:?}, unable to convert into PartsListFilter")]
-    InvalidFilterString {
-        s: String,
-    },
+    InvalidFilterString { s: String },
 
     /// Failure to parse string into valid PartsListUpdate
     #[error("Invalid string: {s:?}, unable to convert into PartsListUpdate")]
-    InvalidUpdateString {
-        s: String,
-    },
+    InvalidUpdateString { s: String },
 
     /// Unhandled filter type for operation
     #[error("Invalid filter operation {s:?} for {s:?}, unable to execute")]
-    InvalidFilterChoice {
-        s: String,
-        f: String,
-    },
+    InvalidFilterChoice { s: String, f: String },
 
     /// Unknown error related to parts list
     #[error("unknown parts list error")]
@@ -146,7 +132,7 @@ pub enum PartsListUpdate {
     Replace,
 }
 
-impl TryFrom<&str> for PartsListUpdate { 
+impl TryFrom<&str> for PartsListUpdate {
     type Error = PartsListError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
@@ -155,12 +141,12 @@ impl TryFrom<&str> for PartsListUpdate {
             "add" => Ok(PartsListUpdate::Add),
             "remove" => Ok(PartsListUpdate::Remove),
             "replace" => Ok(PartsListUpdate::Replace),
-            _ => Err(PartsListError::InvalidUpdateString{s: s.into()})
+            _ => Err(PartsListError::InvalidUpdateString { s: s.into() }),
         }
     }
 }
 
-impl From<PartsListUpdate> for &str { 
+impl From<PartsListUpdate> for &str {
     fn from(f: PartsListUpdate) -> &'static str {
         match f {
             PartsListUpdate::Add => "add",
@@ -182,9 +168,7 @@ impl PartsList {
         if let Some(part) = self.0.get(id) {
             Ok(part)
         } else {
-            Err(PartsListError::PartDoesNotExist {
-                id: id.clone()
-            })
+            Err(PartsListError::PartDoesNotExist { id: *id })
         }
     }
 
@@ -192,17 +176,15 @@ impl PartsList {
         if let Some(part) = self.0.get_mut(id) {
             Ok(part)
         } else {
-            Err(PartsListError::PartDoesNotExist {
-                id: id.clone()
-            })
+            Err(PartsListError::PartDoesNotExist { id: *id })
         }
     }
 
     pub fn add(&mut self, new_part: Part) -> Result<&Part, PartsListError> {
-        let id = new_part.id.clone();
+        let id = new_part.id;
         // Check for part id collision based on name
-        if !self.0.contains_key(&id) {
-            self.0.insert(id.clone(), new_part);
+        if let Entry::Vacant(entry) = self.0.entry(id) {
+            entry.insert(new_part);
             if let Some(part) = self.0.get(&id) {
                 Ok(part)
             } else {
@@ -210,8 +192,8 @@ impl PartsList {
             }
         } else {
             Err(PartsListError::PartExists {
-                name: new_part.name.into(),
-                id: new_part.id
+                name: new_part.name,
+                id: new_part.id,
             })
         }
     }
@@ -229,15 +211,20 @@ impl PartsList {
             // Finally remove actual part
             Ok(())
         } else {
-            Err(PartsListError::PartDoesNotExist {
-                id: id.clone()
-            })
+            Err(PartsListError::PartDoesNotExist { id: *id })
         }
     }
 
-    fn recurse_parts_list<'a, T, V>(&'a self, id: &Uuid, accumulate: &mut HashMap<&'a Uuid, &'a Part>, next_set: &T, test: &V) -> Result<(), PartsListError>
-        where T: Fn(&Part) -> Vec<&Uuid>,
-              V: Fn(&Part) -> bool
+    fn recurse_parts_list<'a, T, V>(
+        &'a self,
+        id: &Uuid,
+        accumulate: &mut HashMap<&'a Uuid, &'a Part>,
+        next_set: &T,
+        test: &V,
+    ) -> Result<(), PartsListError>
+    where
+        T: Fn(&Part) -> Vec<&Uuid>,
+        V: Fn(&Part) -> bool,
     {
         let part = self.get(id)?;
         for child in next_set(part) {
@@ -250,7 +237,12 @@ impl PartsList {
         Ok(())
     }
 
-    fn recurse_match(&self, next_set: fn(&Part) -> Vec<&Uuid>, parts: Vec<&Uuid>, candidate: &Uuid) -> Result<bool, PartsListError> {
+    fn recurse_match(
+        &self,
+        next_set: fn(&Part) -> Vec<&Uuid>,
+        parts: Vec<&Uuid>,
+        candidate: &Uuid,
+    ) -> Result<bool, PartsListError> {
         for part in parts {
             // found a match
             if part == candidate {
@@ -275,60 +267,81 @@ impl PartsList {
     }
 
     fn is_ancestor(&self, part: &Uuid, candidate: &Uuid) -> Result<bool, PartsListError> {
-        self.recurse_match(PartsList::get_part_parents, PartsList::get_part_parents(self.get(part)?), candidate)
+        self.recurse_match(
+            PartsList::get_part_parents,
+            PartsList::get_part_parents(self.get(part)?),
+            candidate,
+        )
     }
 
-    pub fn get_children(&self, id: &Uuid, filter: PartsListFilter) -> Result<Vec<&Part>, PartsListError> {
+    pub fn get_children(
+        &self,
+        id: &Uuid,
+        filter: PartsListFilter,
+    ) -> Result<Vec<&Part>, PartsListError> {
         match filter {
             PartsListFilter::All => {
                 let mut acc = HashMap::new();
-                self.recurse_parts_list(id, &mut acc, &PartsList::get_part_children, &|_| {true})?;
+                self.recurse_parts_list(id, &mut acc, &PartsList::get_part_children, &|_| true)?;
                 Ok(acc.values().copied().collect())
-            },
+            }
             PartsListFilter::TopLevel => {
-                let children = self.get(id)?.children.iter().map(|x| {self.get(x)}).collect::<Result<Vec<_>, _>>()?;
+                let children = self
+                    .get(id)?
+                    .children
+                    .iter()
+                    .map(|x| self.get(x))
+                    .collect::<Result<Vec<_>, _>>()?;
                 Ok(children)
-            },
+            }
             PartsListFilter::Component => {
                 let mut acc = HashMap::new();
-                let test = |x: &Part| {!x.parents.is_empty() && x.children.is_empty()};
+                let test = |x: &Part| !x.parents.is_empty() && x.children.is_empty();
                 self.recurse_parts_list(id, &mut acc, &PartsList::get_part_children, &test)?;
                 Ok(acc.values().copied().collect())
-            },
+            }
             PartsListFilter::Assembly => {
                 let mut acc = HashMap::new();
-                self.recurse_parts_list(id, &mut acc, &PartsList::get_part_parents, &|_| {true})?;
+                self.recurse_parts_list(id, &mut acc, &PartsList::get_part_parents, &|_| true)?;
                 Ok(acc.values().copied().collect())
-            },
-            _ => { return Err(PartsListError::InvalidFilterChoice{ s: "get_children".into(), f: String::from(Into::<&str>::into(filter)) }); }
+            }
+            _ => Err(PartsListError::InvalidFilterChoice {
+                s: "get_children".into(),
+                f: String::from(Into::<&str>::into(filter)),
+            }),
         }
     }
 
-    fn add_children(&mut self, parent: &Uuid, children: &Vec<&Uuid>) -> Result<(), PartsListError> {
+    fn add_children(&mut self, parent: &Uuid, children: &[&Uuid]) -> Result<(), PartsListError> {
         // add each child one at a time
         for child in children {
             // can't add itself as a child
             if parent == *child {
-                return Err(PartsListError::AddChildCyclicalRelative{ parent: *parent, child: **child });
+                return Err(PartsListError::AddChildCyclicalRelative {
+                    parent: *parent,
+                    child: **child,
+                });
             }
             // check child does not have parent in tree
             if self.is_ancestor(parent, child)? {
-                return Err(PartsListError::AddChildCyclicalRelative{ parent: *parent, child: **child });
+                return Err(PartsListError::AddChildCyclicalRelative {
+                    parent: *parent,
+                    child: **child,
+                });
             } else {
                 // actually add child and update parents
                 {
                     let parent_ref = self.get_mut(parent)?;
-                    parent_ref.children.insert(*child.clone());
+                    parent_ref.children.insert(**child);
                 }
                 let child_ref = self.get_mut(child)?;
-                child_ref.parents.insert(parent.clone());
+                child_ref.parents.insert(*parent);
             }
-        
         }
         Ok(())
     }
 
-    fn remove_children(&mut self, parent: &Uuid, children: &Vec<&Uuid>) -> Result<(), PartsListError> {
+    fn remove_children(&mut self, parent: &Uuid, children: &[&Uuid]) -> Result<(), PartsListError> {
         // add each child one at a time
         for child in children {
             let child_ref = self.get_mut(child)?;
@@ -342,13 +355,15 @@ impl PartsList {
         Ok(())
     }
 
-    pub fn update(&mut self,
-                  id: &Uuid,
-                  children: &Vec<&Uuid>,
-                  op: PartsListUpdate) -> Result<(), PartsListError> {
+    pub fn update(
+        &mut self,
+        id: &Uuid,
+        children: &[&Uuid],
+        op: PartsListUpdate,
+    ) -> Result<(), PartsListError> {
         match op {
-            PartsListUpdate::Add => { self.add_children(&id, children) },
-            PartsListUpdate::Remove => { self.remove_children(&id, children) },
+            PartsListUpdate::Add => self.add_children(&id, children),
+            PartsListUpdate::Remove => self.remove_children(&id, children),
             PartsListUpdate::Replace => {
                 let part = self.get(&id)?.clone();
                 let old_children = &PartsList::get_part_children(&part);
@@ -361,33 +376,47 @@ impl PartsList {
     pub fn list(&self, filter: PartsListFilter) -> Vec<&Part> {
         match filter {
             PartsListFilter::All => self.0.values().collect(),
-            PartsListFilter::TopLevel => self.0.values().filter(|x| {x.parents.is_empty()}).collect(),
-            PartsListFilter::Assembly => self.0.values().filter(|x| {!x.children.is_empty()}).collect(),
-            PartsListFilter::Component => {
-               self.0.values().filter(|x| {!x.parents.is_empty() && x.children.is_empty()}).collect()
-            },
-            PartsListFilter::Subassembly => {
-               self.0.values().filter(|x| {!x.parents.is_empty() && !x.children.is_empty()}).collect()
-            },
-            PartsListFilter::Orphan => {
-               self.0.values().filter(|x| {x.parents.is_empty() && x.children.is_empty()}).collect()
+            PartsListFilter::TopLevel => self.0.values().filter(|x| x.parents.is_empty()).collect(),
+            PartsListFilter::Assembly => {
+                self.0.values().filter(|x| !x.children.is_empty()).collect()
             }
+            PartsListFilter::Component => self
+                .0
+                .values()
+                .filter(|x| !x.parents.is_empty() && x.children.is_empty())
+                .collect(),
+            PartsListFilter::Subassembly => self
+                .0
+                .values()
+                .filter(|x| !x.parents.is_empty() && !x.children.is_empty())
+                .collect(),
+            PartsListFilter::Orphan => self
+                .0
+                .values()
+                .filter(|x| x.parents.is_empty() && x.children.is_empty())
+                .collect(),
         }
     }
+}
 
+impl Default for PartsList {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn list_contains_part<'a, 'b, T: Iterator<Item = &'a &'a Part>>(list_iter: &mut T, part: &'b Part) -> bool 
-    {
-        list_iter.find(|x| {x.id == part.id}).is_none() == false
+    fn list_contains_part<'a, 'b, T: Iterator<Item = &'a &'a Part>>(
+        list_iter: &mut T,
+        part: &'b Part,
+    ) -> bool {
+        list_iter.find(|x| x.id == part.id).is_none() == false
     }
 
-    fn list_compare(list: &[&Part], other: &[&Part]) -> ()
-    {
+    fn list_compare(list: &[&Part], other: &[&Part]) -> () {
         let mut list: Vec<&Part> = list.iter().copied().collect();
         let mut other: Vec<&Part> = other.iter().copied().collect();
         assert_eq!(list.sort(), other.sort());
@@ -425,7 +454,6 @@ mod tests {
         });
     }
 
-
     #[test]
     fn basic_parts_add_and_list() {
         let mut parts = PartsList::new();
@@ -449,7 +477,9 @@ mod tests {
         let part2 = Part::new(name2);
         let _ = parts.add(part1.clone()).unwrap();
         let _ = parts.add(part2.clone()).unwrap();
-        parts.update(&part1.id, &vec![&part2.id],  PartsListUpdate::Add).unwrap();
+        parts
+            .update(&part1.id, &vec![&part2.id], PartsListUpdate::Add)
+            .unwrap();
         assert!(parts.get(&part1.id).unwrap().children.contains(&part2.id));
         assert!(parts.get(&part2.id).unwrap().parents.contains(&part1.id));
     }
@@ -463,8 +493,12 @@ mod tests {
         let part2 = Part::new(name2);
         let _ = parts.add(part1.clone()).unwrap();
         let _ = parts.add(part2.clone()).unwrap();
-        parts.update(&part1.id, &vec![&part2.id],  PartsListUpdate::Add).unwrap();
-        parts.update(&part1.id, &vec![&part2.id],  PartsListUpdate::Remove).unwrap();
+        parts
+            .update(&part1.id, &vec![&part2.id], PartsListUpdate::Add)
+            .unwrap();
+        parts
+            .update(&part1.id, &vec![&part2.id], PartsListUpdate::Remove)
+            .unwrap();
         assert!(parts.get(&part1.id).unwrap().children.contains(&part2.id) == false);
         assert!(parts.get(&part2.id).unwrap().parents.contains(&part1.id) == false);
     }
@@ -474,7 +508,9 @@ mod tests {
         let mut parts = PartsList::new();
         let part1 = parts.add(Part::new("my part")).unwrap().clone();
         let part2 = parts.add(Part::new("other part")).unwrap().clone();
-        parts.update(&part1.id, &vec![&part2.id],  PartsListUpdate::Add).unwrap();
+        parts
+            .update(&part1.id, &vec![&part2.id], PartsListUpdate::Add)
+            .unwrap();
         let list = parts.list(PartsListFilter::TopLevel);
         assert_eq!(list_contains_part(&mut list.iter(), &part1), true);
         assert_eq!(list_contains_part(&mut list.iter(), &part2), false);
@@ -486,7 +522,9 @@ mod tests {
         let part1 = parts.add(Part::new("my part")).unwrap().clone();
         let part2 = parts.add(Part::new("other part")).unwrap().clone();
         let part3 = parts.add(Part::new("orphan part")).unwrap().clone();
-        parts.update(&part1.id, &vec![&part2.id],  PartsListUpdate::Add).unwrap();
+        parts
+            .update(&part1.id, &vec![&part2.id], PartsListUpdate::Add)
+            .unwrap();
         let list = parts.list(PartsListFilter::Orphan);
         assert_eq!(list_contains_part(&mut list.iter(), &part1), false);
         assert_eq!(list_contains_part(&mut list.iter(), &part2), false);
@@ -501,20 +539,32 @@ mod tests {
         let part3 = parts.add(Part::new("subassy")).unwrap().clone();
         let part4 = parts.add(Part::new("deep component")).unwrap().clone();
 
-        parts.update(&part1.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
-        parts.update(&part2.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
-        parts.update(&part3.id, &vec![&part4.id],  PartsListUpdate::Add).unwrap();
+        parts
+            .update(&part1.id, &vec![&part3.id], PartsListUpdate::Add)
+            .unwrap();
+        parts
+            .update(&part2.id, &vec![&part3.id], PartsListUpdate::Add)
+            .unwrap();
+        parts
+            .update(&part3.id, &vec![&part4.id], PartsListUpdate::Add)
+            .unwrap();
 
-        let list = parts.get_children(&part1.id, PartsListFilter::TopLevel).unwrap();
+        let list = parts
+            .get_children(&part1.id, PartsListFilter::TopLevel)
+            .unwrap();
         list_compare(&list, &vec![&part3]);
 
-        let list = parts.get_children(&part1.id, PartsListFilter::Component).unwrap();
+        let list = parts
+            .get_children(&part1.id, PartsListFilter::Component)
+            .unwrap();
         list_compare(&list, &vec![&part4]);
 
         let list = parts.get_children(&part1.id, PartsListFilter::All).unwrap();
         list_compare(&list, &vec![&part3, &part4]);
 
-        let list = parts.get_children(&part4.id, PartsListFilter::Assembly).unwrap();
+        let list = parts
+            .get_children(&part4.id, PartsListFilter::Assembly)
+            .unwrap();
         list_compare(&list, &vec![&part1, &part2, &part3]);
     }
 
@@ -526,14 +576,26 @@ mod tests {
         let part3 = parts.add(Part::new("subassy")).unwrap().clone();
         let part4 = parts.add(Part::new("deep component")).unwrap().clone();
 
-        parts.update(&part1.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
-        parts.update(&part2.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
-        parts.update(&part3.id, &vec![&part4.id],  PartsListUpdate::Add).unwrap();
+        parts
+            .update(&part1.id, &vec![&part3.id], PartsListUpdate::Add)
+            .unwrap();
+        parts
+            .update(&part2.id, &vec![&part3.id], PartsListUpdate::Add)
+            .unwrap();
+        parts
+            .update(&part3.id, &vec![&part4.id], PartsListUpdate::Add)
+            .unwrap();
 
         let list = parts.get_children(&part1.id, PartsListFilter::All).unwrap();
         list_compare(&list, &vec![&part3, &part4]);
 
-        parts.update(&part1.id, &vec![&part2.id, &part3.id, &part4.id],  PartsListUpdate::Replace).unwrap();
+        parts
+            .update(
+                &part1.id,
+                &vec![&part2.id, &part3.id, &part4.id],
+                PartsListUpdate::Replace,
+            )
+            .unwrap();
 
         let list = parts.get_children(&part1.id, PartsListFilter::All).unwrap();
         list_compare(&list, &vec![&part2, &part3, &part4]);
@@ -547,21 +609,44 @@ mod tests {
         let part3 = parts.add(Part::new("subassy")).unwrap().clone();
         let part4 = parts.add(Part::new("deep component")).unwrap().clone();
 
-        parts.update(&part1.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
-        parts.update(&part2.id, &vec![&part3.id],  PartsListUpdate::Add).unwrap();
-        parts.update(&part3.id, &vec![&part4.id],  PartsListUpdate::Add).unwrap();
+        parts
+            .update(&part1.id, &vec![&part3.id], PartsListUpdate::Add)
+            .unwrap();
+        parts
+            .update(&part2.id, &vec![&part3.id], PartsListUpdate::Add)
+            .unwrap();
+        parts
+            .update(&part3.id, &vec![&part4.id], PartsListUpdate::Add)
+            .unwrap();
 
         let list = parts.list(PartsListFilter::All);
         list_compare(&list, &vec![&part1, &part2, &part3, &part4]);
         parts.delete(&part3.id).unwrap();
         let list = parts.list(PartsListFilter::All);
         list_compare(&list, &vec![&part1, &part2, &part4]);
-        assert_eq!(parts.get(&part1.id).unwrap().children.contains(&part3.id), false);
-        assert_eq!(parts.get(&part1.id).unwrap().parents.contains(&part3.id), false);
-        assert_eq!(parts.get(&part2.id).unwrap().children.contains(&part3.id), false);
-        assert_eq!(parts.get(&part2.id).unwrap().parents.contains(&part3.id), false);
-        assert_eq!(parts.get(&part4.id).unwrap().children.contains(&part3.id), false);
-        assert_eq!(parts.get(&part4.id).unwrap().parents.contains(&part3.id), false);
+        assert_eq!(
+            parts.get(&part1.id).unwrap().children.contains(&part3.id),
+            false
+        );
+        assert_eq!(
+            parts.get(&part1.id).unwrap().parents.contains(&part3.id),
+            false
+        );
+        assert_eq!(
+            parts.get(&part2.id).unwrap().children.contains(&part3.id),
+            false
+        );
+        assert_eq!(
+            parts.get(&part2.id).unwrap().parents.contains(&part3.id),
+            false
+        );
+        assert_eq!(
+            parts.get(&part4.id).unwrap().children.contains(&part3.id),
+            false
+        );
+        assert_eq!(
+            parts.get(&part4.id).unwrap().parents.contains(&part3.id),
+            false
+        );
     }
-
 }

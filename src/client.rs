@@ -13,7 +13,10 @@ pub struct ClientContext {
 
 impl ClientContext {
     pub fn new(base_url: Url) -> ClientContext {
-        ClientContext { client: Client::new(),  base_url: base_url }
+        ClientContext {
+            client: Client::new(),
+            base_url,
+        }
     }
 }
 
@@ -24,7 +27,10 @@ pub async fn get_index(context: &ClientContext) -> anyhow::Result<String> {
         .await?)
 }
 
-pub async fn list_parts(context: &ClientContext, filter: PartsListFilter) -> anyhow::Result<Response> {
+pub async fn list_parts(
+    context: &ClientContext,
+    filter: PartsListFilter,
+) -> anyhow::Result<Response> {
     let request_uri: String = format!("/v1/parts?filter={}", Into::<&str>::into(filter));
     Ok(reqwest::get(context.base_url.join(&request_uri)?)
         .await?
@@ -35,8 +41,10 @@ pub async fn list_parts(context: &ClientContext, filter: PartsListFilter) -> any
 pub async fn create_part(context: &ClientContext, name: &str) -> anyhow::Result<Response> {
     let uri_path = "/v1/parts";
     let request_url = context.base_url.join(&uri_path)?;
-    Ok(context.client.post(request_url)
-        .json(&query::NewPart{name: name.into()})
+    Ok(context
+        .client
+        .post(request_url)
+        .json(&query::NewPart { name: name.into() })
         .send()
         .await?
         .json::<Response>()
@@ -54,26 +62,49 @@ pub async fn get_part(context: &ClientContext, id: &Uuid) -> anyhow::Result<Resp
 pub async fn delete_part(context: &ClientContext, id: &Uuid) -> anyhow::Result<Response> {
     let uri_path: String = format!("/v1/parts/{}", id);
     let request_url = context.base_url.join(&uri_path)?;
-    Ok(context.client.delete(request_url)
-                     .send()
-                     .await?
-                     .json::<Response>()
-                     .await?)
+    Ok(context
+        .client
+        .delete(request_url)
+        .send()
+        .await?
+        .json::<Response>()
+        .await?)
 }
 
-pub async fn get_children(context: &ClientContext, id: &Uuid, filter: PartsListFilter) -> anyhow::Result<Response> {
-    let uri_path: String = format!("/v1/parts/{}/children?filter={}", id, Into::<&str>::into(filter));
+pub async fn get_children(
+    context: &ClientContext,
+    id: &Uuid,
+    filter: PartsListFilter,
+) -> anyhow::Result<Response> {
+    let uri_path: String = format!(
+        "/v1/parts/{}/children?filter={}",
+        id,
+        Into::<&str>::into(filter)
+    );
     Ok(reqwest::get(context.base_url.join(&uri_path)?)
         .await?
         .json::<Response>()
         .await?)
 }
 
-pub async fn update_part(context: &ClientContext, id: &Uuid, children: &[Uuid], action: PartsListUpdate) -> anyhow::Result<Response> {
-    let uri_path = format!("/v1/parts/{}/children?action={}", id, Into::<&str>::into(action));
+pub async fn update_part(
+    context: &ClientContext,
+    id: &Uuid,
+    children: &[Uuid],
+    action: PartsListUpdate,
+) -> anyhow::Result<Response> {
+    let uri_path = format!(
+        "/v1/parts/{}/children?action={}",
+        id,
+        Into::<&str>::into(action)
+    );
     let request_url = context.base_url.join(&uri_path)?;
-    Ok(context.client.post(request_url)
-        .json(&query::UpdateChildren{children: children.iter().copied().collect()})
+    Ok(context
+        .client
+        .post(request_url)
+        .json(&query::UpdateChildren {
+            children: children.iter().copied().collect(),
+        })
         .send()
         .await?
         .json::<Response>()
@@ -87,4 +118,3 @@ pub async fn get_contained(context: &ClientContext, id: &Uuid) -> anyhow::Result
         .json::<Response>()
         .await?)
 }
-
