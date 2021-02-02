@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::convert::{From, TryFrom};
 
 use thiserror::Error;
@@ -305,12 +305,10 @@ impl PartsList {
                 self.recurse_parts_list(id, &mut acc, &PartsList::get_part_parents, &|_| true)?;
                 Ok(acc.values().copied().collect())
             }
-            _ => {
-                Err(PartsListError::InvalidFilterChoice {
-                    s: "get_children".into(),
-                    f: String::from(Into::<&str>::into(filter)),
-                })
-            }
+            _ => Err(PartsListError::InvalidFilterChoice {
+                s: "get_children".into(),
+                f: String::from(Into::<&str>::into(filter)),
+            }),
         }
     }
 
@@ -343,11 +341,7 @@ impl PartsList {
         Ok(())
     }
 
-    fn remove_children(
-        &mut self,
-        parent: &Uuid,
-        children: &[&Uuid],
-    ) -> Result<(), PartsListError> {
+    fn remove_children(&mut self, parent: &Uuid, children: &[&Uuid]) -> Result<(), PartsListError> {
         // add each child one at a time
         for child in children {
             let child_ref = self.get_mut(child)?;
