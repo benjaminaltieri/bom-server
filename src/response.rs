@@ -30,7 +30,7 @@ impl Response {
 
     pub fn result(mut self, code: u32, description: &str) -> Response {
         self.result = Some(QueryResult {
-            code: code,
+            code,
             description: description.into(),
         });
         self

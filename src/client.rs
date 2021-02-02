@@ -15,7 +15,7 @@ impl ClientContext {
     pub fn new(base_url: Url) -> ClientContext {
         ClientContext {
             client: Client::new(),
-            base_url: base_url,
+            base_url,
         }
     }
 }
