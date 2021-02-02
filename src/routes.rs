@@ -87,7 +87,7 @@ To request updates to the children of a part, supply the child identifiers for t
 pub fn list_parts(filter: Option<&RawStr>, parts: State<SharedPartsList>) -> Json<Response> {
     let response = Response::new();
     match filter
-        .unwrap_or(RawStr::from_str("all"))
+        .unwrap_or_else(|| RawStr::from_str("all"))
         .as_str()
         .try_into()
     {
@@ -132,7 +132,7 @@ pub fn create_part(data: Json<NewPart>, parts: State<SharedPartsList>) -> Json<R
 #[get("/v1/parts/<part_id>")]
 pub fn get_part(part_id: RocketUuid, parts: State<SharedPartsList>) -> Json<Response> {
     let response = Response::new();
-    let part_id = Uuid::from_bytes(part_id.as_bytes().clone());
+    let part_id = Uuid::from_bytes(*part_id.as_bytes());
     if let Ok(parts) = parts.0.try_read() {
         match parts.get(&part_id) {
             Ok(part) => Json(
@@ -150,7 +150,7 @@ pub fn get_part(part_id: RocketUuid, parts: State<SharedPartsList>) -> Json<Resp
 #[delete("/v1/parts/<part_id>")]
 pub fn delete_part(part_id: RocketUuid, parts: State<SharedPartsList>) -> Json<Response> {
     let response = Response::new();
-    let part_id = Uuid::from_bytes(part_id.as_bytes().clone());
+    let part_id = Uuid::from_bytes(*part_id.as_bytes());
     if let Ok(mut parts) = parts.0.try_write() {
         match parts.delete(&part_id) {
             Ok(_) => Json(response.result(200, "Deleted part from list")),
@@ -168,9 +168,9 @@ pub fn get_children(
     parts: State<SharedPartsList>,
 ) -> Json<Response> {
     let response = Response::new();
-    let part_id = Uuid::from_bytes(part_id.as_bytes().clone());
+    let part_id = Uuid::from_bytes(*part_id.as_bytes());
     match filter
-        .unwrap_or(RawStr::from_str("all"))
+        .unwrap_or_else(|| RawStr::from_str("all"))
         .as_str()
         .try_into()
     {
@@ -221,9 +221,9 @@ pub fn update_children(
     parts: State<SharedPartsList>,
 ) -> Json<Response> {
     let response = Response::new();
-    let part_id = Uuid::from_bytes(part_id.as_bytes().clone());
+    let part_id = Uuid::from_bytes(*part_id.as_bytes());
     match action
-        .unwrap_or(RawStr::from_str("add"))
+        .unwrap_or_else(|| RawStr::from_str("add"))
         .as_str()
         .try_into()
     {
@@ -253,7 +253,7 @@ pub fn update_children(
 #[get("/v1/parts/<part_id>/contained")]
 pub fn get_contained(part_id: RocketUuid, parts: State<SharedPartsList>) -> Json<Response> {
     let response = Response::new();
-    let part_id = Uuid::from_bytes(part_id.as_bytes().clone());
+    let part_id = Uuid::from_bytes(*part_id.as_bytes());
     if let Ok(parts) = parts.0.try_read() {
         match parts.get_children(&part_id, PartsListFilter::Assembly) {
             Ok(children) => {

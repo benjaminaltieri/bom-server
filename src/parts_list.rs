@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::Entry;
 use std::convert::{From, TryFrom};
 
 use thiserror::Error;
@@ -27,7 +28,7 @@ impl Part {
 impl Clone for Part {
     fn clone(&self) -> Self {
         Part {
-            id: self.id.clone(),
+            id: self.id,
             name: self.name.clone(),
             parents: self.parents.clone(),
             children: self.children.clone(),
@@ -167,7 +168,7 @@ impl PartsList {
         if let Some(part) = self.0.get(id) {
             Ok(part)
         } else {
-            Err(PartsListError::PartDoesNotExist { id: id.clone() })
+            Err(PartsListError::PartDoesNotExist { id: *id })
         }
     }
 
@@ -175,15 +176,15 @@ impl PartsList {
         if let Some(part) = self.0.get_mut(id) {
             Ok(part)
         } else {
-            Err(PartsListError::PartDoesNotExist { id: id.clone() })
+            Err(PartsListError::PartDoesNotExist { id: *id })
         }
     }
 
     pub fn add(&mut self, new_part: Part) -> Result<&Part, PartsListError> {
-        let id = new_part.id.clone();
+        let id = new_part.id;
         // Check for part id collision based on name
-        if !self.0.contains_key(&id) {
-            self.0.insert(id.clone(), new_part);
+        if let Entry::Vacant(entry) = self.0.entry(id) {
+            entry.insert(new_part);
             if let Some(part) = self.0.get(&id) {
                 Ok(part)
             } else {
@@ -191,7 +192,7 @@ impl PartsList {
             }
         } else {
             Err(PartsListError::PartExists {
-                name: new_part.name.into(),
+                name: new_part.name,
                 id: new_part.id,
             })
         }
@@ -210,7 +211,7 @@ impl PartsList {
             // Finally remove actual part
             Ok(())
         } else {
-            Err(PartsListError::PartDoesNotExist { id: id.clone() })
+            Err(PartsListError::PartDoesNotExist { id: *id })
         }
     }
 
@@ -305,15 +306,15 @@ impl PartsList {
                 Ok(acc.values().copied().collect())
             }
             _ => {
-                return Err(PartsListError::InvalidFilterChoice {
+                Err(PartsListError::InvalidFilterChoice {
                     s: "get_children".into(),
                     f: String::from(Into::<&str>::into(filter)),
-                });
+                })
             }
         }
     }
 
-    fn add_children(&mut self, parent: &Uuid, children: &Vec<&Uuid>) -> Result<(), PartsListError> {
+    fn add_children(&mut self, parent: &Uuid, children: &[&Uuid]) -> Result<(), PartsListError> {
         // add each child one at a time
         for child in children {
             // can't add itself as a child
@@ -333,10 +334,10 @@ impl PartsList {
                 // actually add child and update parents
                 {
                     let parent_ref = self.get_mut(parent)?;
-                    parent_ref.children.insert(*child.clone());
+                    parent_ref.children.insert(**child);
                 }
                 let child_ref = self.get_mut(child)?;
-                child_ref.parents.insert(parent.clone());
+                child_ref.parents.insert(*parent);
             }
         }
         Ok(())
@@ -345,7 +346,7 @@ impl PartsList {
     fn remove_children(
         &mut self,
         parent: &Uuid,
-        children: &Vec<&Uuid>,
+        children: &[&Uuid],
     ) -> Result<(), PartsListError> {
         // add each child one at a time
         for child in children {
@@ -363,7 +364,7 @@ impl PartsList {
     pub fn update(
         &mut self,
         id: &Uuid,
-        children: &Vec<&Uuid>,
+        children: &[&Uuid],
         op: PartsListUpdate,
     ) -> Result<(), PartsListError> {
         match op {
@@ -401,6 +402,12 @@ impl PartsList {
                 .filter(|x| x.parents.is_empty() && x.children.is_empty())
                 .collect(),
         }
+    }
+}
+
+impl Default for PartsList {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

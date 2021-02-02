@@ -32,6 +32,12 @@ impl SharedPartsList {
     }
 }
 
+impl Default for SharedPartsList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Create reactor for bom-server taking ownership of a parts list instance
 /// and mount all API paths from the routes module
 pub fn make_rocket(parts_list: SharedPartsList) -> rocket::Rocket {
